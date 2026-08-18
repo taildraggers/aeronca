@@ -23,8 +23,10 @@ USER_AGENT = (
 )
 
 PAGE_TIMEOUT_MS = 30_000
-CHALLENGE_SETTLE_MS = 4_000
+CHALLENGE_MAX_WAIT_MS = 25_000
+CHALLENGE_POLL_MS = 1_000
 REQUEST_DELAY_SECONDS = 1.0
+CHALLENGE_TITLE_MARKERS = ("just a moment", "attention required", "checking your browser")
 
 _playwright = None
 _browser = None
@@ -65,8 +67,16 @@ def fetch(url: str) -> Optional[str]:
     page = _get_context().new_page()
     try:
         page.goto(url, wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS)
-        # Give Cloudflare's JS challenge (if any) time to resolve and redirect.
-        page.wait_for_timeout(CHALLENGE_SETTLE_MS)
+        # If Cloudflare's JS challenge fires, poll until it clears (or give up).
+        waited = 0
+        while waited < CHALLENGE_MAX_WAIT_MS:
+            title = (page.title() or "").lower()
+            if not any(marker in title for marker in CHALLENGE_TITLE_MARKERS):
+                break
+            page.wait_for_timeout(CHALLENGE_POLL_MS)
+            waited += CHALLENGE_POLL_MS
+        else:
+            print(f"  [warn] {url} -> Cloudflare challenge did not clear after {waited}ms")
         return page.content()
     except Exception as exc:  # Playwright raises its own error types
         print(f"  [warn] {url} -> {exc}")

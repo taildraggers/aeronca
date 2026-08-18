@@ -25,7 +25,7 @@ def _find_listing_links(html: str) -> set[str]:
     soup = BeautifulSoup(html, "lxml")
     links = set()
     for a in soup.find_all("a", href=True):
-        href = a["href"]
+        href = a["href"].split("?")[0]
         if LISTING_LINK_RE.match(href):
             links.add(urljoin(BASE, href))
     return links
