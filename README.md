@@ -1,19 +1,26 @@
 # Aeronca
 
-Daily aggregator of Aeronca aircraft classified listings from [Controller.com](https://www.controller.com)
-and [Barnstormers.com](https://www.barnstormers.com), published as a static page
+Daily aggregator of Aeronca aircraft classified listings from
+[Barnstormers.com](https://www.barnstormers.com), published as a static page
 (`docs/index.html`) meant to be embedded via `<iframe>` on taildraggers.com.
+
+Controller.com was evaluated but dropped: its search results are only reachable
+through an internal client-side widget (not a plain URL), which a headless
+browser can't drive reliably for an unattended daily job.
 
 ## How it works
 
-- `scraper/barnstormers.py` and `scraper/controller.py` each search their site for
-  Aeronca listings, follow pagination, then visit each listing's detail page to pull
-  out the title, price, location, and posted date (using structured data/JSON-LD when
-  the site provides it, falling back to regex heuristics over the visible text).
-- `main.py` runs both scrapers, de-duplicates results, and renders them into
+- `scraper/barnstormers.py` searches Barnstormers.com for Aeronca listings, follows
+  pagination, then visits each listing's detail page to pull out the price, location,
+  and posted date (falling back to regex heuristics over the visible text since the
+  site doesn't expose structured data). The title is derived from the listing URL's
+  own SEO slug, since every detail page shares one generic `<title>`/`<h1>`.
+- `main.py` runs the scraper, de-duplicates results, and renders them into
   `docs/index.html` titled **"Other Aeronca Ads on the Web"**, with one row per
   listing: Title (linked to the original ad), Price, Location, Date Posted, and Site
-  Posted On.
+  Posted On. Links use `rel="noopener noreferrer"` and the page sets a
+  `no-referrer` meta policy, so Barnstormers never sees that the click came from
+  taildraggers.com.
 - `.github/workflows/daily-scrape.yml` runs the whole thing once a day (13:00 UTC),
   commits the regenerated `docs/index.html` if it changed, and can also be triggered
   manually from the Actions tab (`workflow_dispatch`).
@@ -51,8 +58,7 @@ This writes/overwrites `docs/index.html`.
 
 ## Notes
 
-- Each scraper fails independently — if one site changes its markup or is briefly
-  unreachable, the other site's listings still get published, and the run logs will
-  show a `[warn]`/`[error]` line pointing at what broke.
-- The scrapers identify themselves with a descriptive `User-Agent` and add a short
-  delay between requests to be polite to both sites.
+- If Barnstormers changes its markup or is briefly unreachable, the run logs will
+  show a `[warn]`/`[error]` line pointing at what broke rather than failing silently.
+- The scraper identifies itself with a browser-like `User-Agent` and adds a short
+  delay between requests to be polite to the site.

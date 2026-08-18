@@ -1,5 +1,5 @@
-"""Scrape Aeronca listings from Controller.com and Barnstormers.com and
-render them into docs/index.html for embedding via <iframe> on taildraggers.com.
+"""Scrape Aeronca listings from Barnstormers.com and render them into
+docs/index.html for embedding via <iframe> on taildraggers.com.
 """
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import datetime as dt
 import html
 import os
 
-from scraper import barnstormers, controller
+from scraper import barnstormers
 from scraper.common import Listing, close_browser
 
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "docs", "index.html")
@@ -17,7 +17,7 @@ PAGE_TITLE = "Other Aeronca Ads on the Web"
 def collect_listings() -> list[Listing]:
     listings: list[Listing] = []
     try:
-        for scraper in (barnstormers, controller):
+        for scraper in (barnstormers,):
             try:
                 listings.extend(scraper.scrape())
             except Exception as exc:  # one site failing shouldn't kill the whole run
@@ -61,6 +61,7 @@ def render_html(listings: list[Listing]) -> str:
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
 <title>{html.escape(PAGE_TITLE)}</title>
 <style>
   :root {{ color-scheme: light dark; }}
@@ -87,7 +88,7 @@ def render_html(listings: list[Listing]) -> str:
 </head>
 <body>
   <h1>{html.escape(PAGE_TITLE)}</h1>
-  <div class="updated">Updated {html.escape(now)} &middot; {len(listings)} listing(s) from Controller.com and Barnstormers.com</div>
+  <div class="updated">Updated {html.escape(now)} &middot; {len(listings)} listing(s) from Barnstormers.com</div>
   <table>
     <thead>
       <tr><th>Title</th><th>Price</th><th>Location</th><th>Date Posted</th><th>Site Posted On</th></tr>

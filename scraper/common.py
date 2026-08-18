@@ -1,10 +1,9 @@
 """Shared helpers used by the Aeronca listing scrapers.
 
-Both target sites sit behind Cloudflare bot protection that treats plain
-`requests`/`curl` HTTP clients differently from a real browser (Barnstormers
-silently returns near-empty pages; Controller.com serves a JS challenge
-page). A real headless browser clears both, so fetching is done through
-Playwright/Chromium instead of a plain HTTP client.
+Barnstormers.com sits behind Cloudflare bot protection that treats plain
+`requests`/`curl` HTTP clients differently from a real browser, silently
+returning near-empty pages. A real headless browser clears this, so
+fetching is done through Playwright/Chromium instead of a plain HTTP client.
 """
 from __future__ import annotations
 
@@ -39,7 +38,6 @@ def _get_context():
         _playwright = sync_playwright().start()
         _browser = _playwright.chromium.launch(
             headless=True,
-            channel="chrome",
             args=["--disable-blink-features=AutomationControlled"],
         )
         _context = _browser.new_context(
