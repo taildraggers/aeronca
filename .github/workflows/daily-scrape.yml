@@ -28,6 +28,24 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt
 
+      - name: Debug raw responses
+        run: |
+          echo "--- Barnstormers category page ---"
+          curl -sL -D - -o /tmp/barn.html \
+            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+            "https://www.barnstormers.com/category-16404-Antique-Classic--Aeronca.html" | head -30
+          echo "content length: $(wc -c < /tmp/barn.html)"
+          echo "first 1000 chars:"
+          head -c 1000 /tmp/barn.html
+          echo
+          echo "--- Controller.com listing page ---"
+          curl -sL -D - -o /tmp/ctrl.html \
+            -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36" \
+            "https://www.controller.com/listings/for-sale/aeronca/aircraft" | head -30
+          echo "content length: $(wc -c < /tmp/ctrl.html)"
+          echo "first 1000 chars:"
+          head -c 1000 /tmp/ctrl.html
+
       - name: Run scraper
         run: python main.py
 
