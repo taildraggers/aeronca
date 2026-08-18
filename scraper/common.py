@@ -78,6 +78,11 @@ def fetch(url: str) -> Optional[str]:
             waited += CHALLENGE_POLL_MS
         else:
             print(f"  [warn] {url} -> Cloudflare challenge did not clear after {waited}ms")
+        # Let any client-side rendering (SPA search results, etc.) finish.
+        try:
+            page.wait_for_load_state("networkidle", timeout=10_000)
+        except Exception:
+            pass
         return page.content()
     except Exception as exc:  # Playwright raises its own error types
         print(f"  [warn] {url} -> {exc}")
