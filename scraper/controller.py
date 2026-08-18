@@ -17,16 +17,14 @@ from .common import (
 
 SITE_NAME = "Controller.com"
 BASE = "https://www.controller.com"
-LIST_URL = f"{BASE}/listings/for-sale/aeronca/aircraft"
+# Manufacturer-filtered search (ScopeCategoryIDs 13|464 = Aircraft / Piston Single,
+# the ids controller.com itself links to from its Aeronca category pages).
+LIST_URL = f"{BASE}/listings/search?Manufacturer=AERONCA&ScopeCategoryIDs=13%7C464&sort=1"
 MAX_PAGES = 10
 
 # Detail page URLs look like /listing/for-sale/<slug>/<numeric-id> - be
 # permissive since the exact slug format can vary by category.
 LISTING_LINK_RE = re.compile(r"^/listing/for-sale/[^/]+/\d+/?$")
-
-
-def _list_page_url(page: int) -> str:
-    return LIST_URL if page == 1 else f"{LIST_URL}/{page}"
 
 
 def _find_listing_links(html: str) -> set[str]:
@@ -37,6 +35,19 @@ def _find_listing_links(html: str) -> set[str]:
         if LISTING_LINK_RE.match(href):
             links.add(urljoin(BASE, href))
     return links
+
+
+def _find_next_page_url(html: str, current_url: str) -> str | None:
+    """Find a "next page" link on a search results page, if any."""
+    soup = BeautifulSoup(html, "lxml")
+    for a in soup.find_all("a", href=True):
+        text = a.get_text(strip=True).lower()
+        rel = a.get("rel") or []
+        if text in ("next", "next »", "»", "next page", ">") or "next" in rel:
+            candidate = urljoin(current_url, a["href"])
+            if candidate != current_url:
+                return candidate
+    return None
 
 
 def _debug_dump_hrefs(html: str, limit: int = 25) -> None:
@@ -95,8 +106,8 @@ def scrape() -> list[Listing]:
     print(f"[{SITE_NAME}] starting scrape")
     all_links: set[str] = set()
 
+    url = LIST_URL
     for page in range(1, MAX_PAGES + 1):
-        url = _list_page_url(page)
         html = fetch(url)
         if not html:
             break
@@ -105,9 +116,11 @@ def scrape() -> list[Listing]:
         print(f"  page {page}: {len(links)} links ({len(new_links)} new)")
         if page == 1 and not links:
             _debug_dump_hrefs(html)
-        if not links or not new_links:
-            break
         all_links |= links
+        next_url = _find_next_page_url(html, url)
+        if not next_url or not new_links:
+            break
+        url = next_url
 
     print(f"[{SITE_NAME}] {len(all_links)} unique listing URLs found")
 
