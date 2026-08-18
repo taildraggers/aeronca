@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from urllib.parse import urljoin
+from urllib.parse import unquote, urljoin
 
 from bs4 import BeautifulSoup
 
@@ -18,7 +18,17 @@ CATEGORY_URLS = [
 ]
 
 MAX_PAGES = 10
-LISTING_LINK_RE = re.compile(r"^/classified-\d+-.*\.html$")
+LISTING_LINK_RE = re.compile(r"^/classified-(\d+)-(.+)\.html$")
+GENERIC_SITE_TITLE_SNIPPET = "barnstormers.com find aircraft"
+
+
+def _title_from_url(url: str) -> str:
+    """Listing pages share a generic <title>/<h1>, but the URL slug is the ad's own title."""
+    slug = url.rstrip("/").rsplit("/", 1)[-1]
+    match = LISTING_LINK_RE.match("/" + slug)
+    if not match:
+        return unquote(slug)
+    return unquote(match.group(2)).replace("-", " ").strip()
 
 
 def _find_listing_links(html: str) -> set[str]:
@@ -57,9 +67,12 @@ def _parse_detail_page(url: str, html: str) -> Listing | None:
 
     title_tag = soup.find("h1") or soup.find("title")
     title = title_tag.get_text(strip=True) if title_tag else None
+    if title:
+        title = re.sub(r"\s*[\|\-]\s*Barnstormers.*$", "", title, flags=re.IGNORECASE).strip()
+    if not title or GENERIC_SITE_TITLE_SNIPPET in title.lower():
+        title = _title_from_url(url)
     if not title:
         return None
-    title = re.sub(r"\s*[\|\-]\s*Barnstormers.*$", "", title, flags=re.IGNORECASE).strip()
 
     text = soup.get_text(" ", strip=True)
     price = extract_price(text)

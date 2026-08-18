@@ -39,6 +39,7 @@ def _get_context():
         _playwright = sync_playwright().start()
         _browser = _playwright.chromium.launch(
             headless=True,
+            channel="chrome",
             args=["--disable-blink-features=AutomationControlled"],
         )
         _context = _browser.new_context(
