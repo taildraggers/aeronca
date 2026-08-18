@@ -11,22 +11,14 @@ from .common import Listing, extract_date, extract_location, extract_price, fetc
 SITE_NAME = "Barnstormers.com"
 BASE = "https://www.barnstormers.com"
 
-# (main category, sub category) pairs that carry Aeronca listings on Barnstormers.
-SEARCHES = [
-    ("Antique-Classic", "Aeronca"),
-    ("Light-Sport", "Aeronca"),
-    ("Experimental", "Aeronca"),
+# Category pages known to carry Aeronca listings on Barnstormers.
+CATEGORY_URLS = [
+    f"{BASE}/category-16404-Antique-Classic--Aeronca.html",
+    f"{BASE}/category-20295-Light-Sport--Aeronca.html",
 ]
 
 MAX_PAGES = 10
 LISTING_LINK_RE = re.compile(r"^/classified-\d+-.*\.html$")
-
-
-def _list_page_url(main: str, sub: str, page: int) -> str:
-    url = f"{BASE}/ad_manager/listing.php?main={main}&sub={sub}"
-    if page > 1:
-        url += f"&page={page}"
-    return url
 
 
 def _find_listing_links(html: str) -> set[str]:
@@ -37,6 +29,19 @@ def _find_listing_links(html: str) -> set[str]:
         if LISTING_LINK_RE.match(href):
             links.add(urljoin(BASE, href))
     return links
+
+
+def _find_next_page_url(html: str, current_url: str) -> str | None:
+    """Find a "next page" link on a category listing page, if any."""
+    soup = BeautifulSoup(html, "lxml")
+    for a in soup.find_all("a", href=True):
+        text = a.get_text(strip=True).lower()
+        rel = a.get("rel") or []
+        if text in ("next", "next »", "»", "next page", ">") or "next" in rel:
+            candidate = urljoin(current_url, a["href"])
+            if candidate != current_url:
+                return candidate
+    return None
 
 
 def _debug_dump_hrefs(html: str, limit: int = 25) -> None:
@@ -75,22 +80,24 @@ def scrape() -> list[Listing]:
     print(f"[{SITE_NAME}] starting scrape")
     all_links: set[str] = set()
 
-    for main, sub in SEARCHES:
-        seen_this_search: set[str] = set()
+    for category_url in CATEGORY_URLS:
+        seen_this_category: set[str] = set()
+        url = category_url
         for page in range(1, MAX_PAGES + 1):
-            url = _list_page_url(main, sub, page)
             html = fetch(url)
             if not html:
                 break
             links = _find_listing_links(html)
-            new_links = links - seen_this_search
-            print(f"  [{main}/{sub}] page {page}: {len(links)} links ({len(new_links)} new)")
+            new_links = links - seen_this_category
+            print(f"  [{category_url}] page {page}: {len(links)} links ({len(new_links)} new)")
             if page == 1 and not links:
                 _debug_dump_hrefs(html)
-            if not links or not new_links:
+            seen_this_category |= links
+            next_url = _find_next_page_url(html, url)
+            if not next_url or not new_links:
                 break
-            seen_this_search |= links
-        all_links |= seen_this_search
+            url = next_url
+        all_links |= seen_this_category
 
     print(f"[{SITE_NAME}] {len(all_links)} unique listing URLs found")
 
