@@ -1,4 +1,11 @@
-"""Shared helpers used by the Aeronca listing scrapers."""
+"""Shared helpers used by the Aeronca listing scrapers.
+
+Both target sites sit behind Cloudflare bot protection that treats plain
+`requests`/`curl` HTTP clients differently from a real browser (Barnstormers
+silently returns near-empty pages; Controller.com serves a JS challenge
+page). A real headless browser clears both, so fetching is done through
+Playwright/Chromium instead of a plain HTTP client.
+"""
 from __future__ import annotations
 
 import json
@@ -7,45 +14,66 @@ import time
 from dataclasses import dataclass
 from typing import Optional
 
-import requests
 from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 
 USER_AGENT = (
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 )
 
-REQUEST_TIMEOUT = 20
+PAGE_TIMEOUT_MS = 30_000
+CHALLENGE_SETTLE_MS = 4_000
 REQUEST_DELAY_SECONDS = 1.0
 
-_session = requests.Session()
-_session.headers.update(
-    {
-        "User-Agent": USER_AGENT,
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-        "Accept-Encoding": "gzip, deflate, br",
-        "Upgrade-Insecure-Requests": "1",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-    }
-)
+_playwright = None
+_browser = None
+_context = None
+
+
+def _get_context():
+    global _playwright, _browser, _context
+    if _context is None:
+        _playwright = sync_playwright().start()
+        _browser = _playwright.chromium.launch(
+            headless=True,
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        _context = _browser.new_context(
+            user_agent=USER_AGENT,
+            viewport={"width": 1366, "height": 900},
+            locale="en-US",
+        )
+        _context.add_init_script(
+            "Object.defineProperty(navigator, 'webdriver', {get: () => undefined});"
+        )
+    return _context
+
+
+def close_browser() -> None:
+    """Shut down the shared Playwright browser, if one was started."""
+    global _playwright, _browser, _context
+    if _browser is not None:
+        _browser.close()
+    if _playwright is not None:
+        _playwright.stop()
+    _playwright = _browser = _context = None
 
 
 def fetch(url: str) -> Optional[str]:
-    """GET a URL and return its text, or None on failure. Adds a polite delay."""
+    """Load a URL in a real browser and return the rendered HTML, or None on failure."""
+    page = _get_context().new_page()
     try:
-        resp = _session.get(url, timeout=REQUEST_TIMEOUT)
-        time.sleep(REQUEST_DELAY_SECONDS)
-        if resp.status_code != 200:
-            print(f"  [warn] {url} -> HTTP {resp.status_code}")
-            return None
-        return resp.text
-    except requests.RequestException as exc:
+        page.goto(url, wait_until="domcontentloaded", timeout=PAGE_TIMEOUT_MS)
+        # Give Cloudflare's JS challenge (if any) time to resolve and redirect.
+        page.wait_for_timeout(CHALLENGE_SETTLE_MS)
+        return page.content()
+    except Exception as exc:  # Playwright raises its own error types
         print(f"  [warn] {url} -> {exc}")
         return None
+    finally:
+        page.close()
+        time.sleep(REQUEST_DELAY_SECONDS)
 
 
 PRICE_RE = re.compile(r"\$\s?[\d,]{3,12}(?:\.\d{2})?")

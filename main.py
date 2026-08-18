@@ -8,7 +8,7 @@ import html
 import os
 
 from scraper import barnstormers, controller
-from scraper.common import Listing
+from scraper.common import Listing, close_browser
 
 OUTPUT_PATH = os.path.join(os.path.dirname(__file__), "docs", "index.html")
 PAGE_TITLE = "Other Aeronca Ads on the Web"
@@ -16,11 +16,14 @@ PAGE_TITLE = "Other Aeronca Ads on the Web"
 
 def collect_listings() -> list[Listing]:
     listings: list[Listing] = []
-    for scraper in (barnstormers, controller):
-        try:
-            listings.extend(scraper.scrape())
-        except Exception as exc:  # one site failing shouldn't kill the whole run
-            print(f"[error] {scraper.SITE_NAME} scrape failed: {exc}")
+    try:
+        for scraper in (barnstormers, controller):
+            try:
+                listings.extend(scraper.scrape())
+            except Exception as exc:  # one site failing shouldn't kill the whole run
+                print(f"[error] {scraper.SITE_NAME} scrape failed: {exc}")
+    finally:
+        close_browser()
 
     seen = set()
     unique: list[Listing] = []
