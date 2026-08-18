@@ -28,17 +28,44 @@
     .updated { color: #9aa0a6; }
     .disclaimer { color: #7a7f85; }
   }
+  /* Below phone width, each row becomes a card: title + price on one line,
+     location / date / site on a second line. Wider viewports (tablets,
+     desktop embeds) keep the table exactly as it is above. */
+  @media (max-width: 600px) {
+    table { display: block; }
+    thead { display: none; }
+    tbody { display: flex; flex-direction: column; gap: 0.6rem; }
+    tr { display: flex; flex-wrap: wrap; align-items: baseline; row-gap: 0.3rem;
+          column-gap: 0.5rem; border: 1px solid #e2e2e2; border-radius: 8px;
+          padding: 0.7rem 0.8rem; }
+    tr:hover { background: none; }
+    td { display: block; border: none; padding: 0; }
+    td:nth-child(1) { flex: 1 1 auto; min-width: 0; order: 1; font-weight: 600; font-size: 0.92rem; }
+    td:nth-child(2) { flex: 0 0 auto; order: 2; margin-left: auto; font-weight: 600;
+                        font-variant-numeric: tabular-nums; white-space: nowrap; }
+    td:nth-child(3) { order: 3; flex-basis: 100%; font-size: 0.78rem; color: #666; }
+    td:nth-child(4) { order: 4; font-size: 0.78rem; color: #666; }
+    td:nth-child(4)::before { content: "\00B7\0020"; }
+    td:nth-child(5) { order: 5; font-size: 0.78rem; color: #666; }
+    td:nth-child(5)::before { content: "\00B7\0020"; }
+    td.empty { font-weight: 400; font-size: 0.9rem; }
+  }
+  @media (prefers-color-scheme: dark) and (max-width: 600px) {
+    tr { border-color: #2a2d31; }
+    td:nth-child(3), td:nth-child(4), td:nth-child(5) { color: #9aa0a6; }
+  }
 </style>
 </head>
 <body>
   <h1>Other Aeronca Ads on the Web</h1>
-  <div class="updated">Updated August 18, 2026 15:11 UTC &middot; 19 listing(s)</div>
+  <div class="updated">Updated August 18, 2026 22:24 UTC &middot; 19 listing(s)</div>
   <div class="disclaimer">External listings are provided for informational purposes. Taildraggers.com is not affiliated with or endorsed by the originating listing sites. Listing information remains the responsibility of the original publisher. Clicking an external listing will take you to the source website.</div>
   <table>
     <thead>
       <tr><th>Title</th><th>Price</th><th>Location</th><th>Date Posted</th><th>Site Posted On</th></tr>
     </thead>
     <tbody>
+        <tr><td><a href="https://www.barnstormers.com/classified-2055686-46-Champ-7AC.html" target="_blank" rel="noopener noreferrer">Aeronca 7AC</a></td><td>$32,500</td><td>Oakland, NE</td><td>August 18, 2026</td><td>Barnstormers.com</td></tr>
         <tr><td><a href="https://www.barnstormers.com/classified-2067179-1947-Aeronca-11BC-project.html" target="_blank" rel="noopener noreferrer">1947 Aeronca 11BC</a></td><td>$3,800</td><td>Bainbridge, GA</td><td>August 16, 2026</td><td>Barnstormers.com</td></tr>
         <tr><td><a href="https://www.barnstormers.com/classified-2060877-AERONCA-7AC-W-METAL-WINGS!.html" target="_blank" rel="noopener noreferrer">Aeronca 7AC</a></td><td>$15,000</td><td>Lake Geneva, WI</td><td>August 16, 2026</td><td>Barnstormers.com</td></tr>
         <tr><td><a href="https://www.barnstormers.com/classified-2034137-Aeronca-Champ.html" target="_blank" rel="noopener noreferrer">Aeronca Champ</a></td><td>Contact for price</td><td>Searsport, ME</td><td>August 16, 2026</td><td>Barnstormers.com</td></tr>
@@ -57,7 +84,6 @@
         <tr><td><a href="https://www.barnstormers.com/classified-2014061-1946-Champ-7AC-75-hp.html" target="_blank" rel="noopener noreferrer">1946 Aeronca 7AC</a></td><td>$24,500</td><td>Rochester, NY</td><td>July 31, 2026</td><td>Barnstormers.com</td></tr>
         <tr><td><a href="https://www.barnstormers.com/classified-1992003-108-HP-AERONCA-7AC.html" target="_blank" rel="noopener noreferrer">Aeronca 7AC</a></td><td>$37,000</td><td>Greenville Jct., ME</td><td>July 24, 2026</td><td>Barnstormers.com</td></tr>
         <tr><td><a href="https://www.barnstormers.com/classified-2048770-1946-Aeronca-Champ-7ac.html" target="_blank" rel="noopener noreferrer">1946 Aeronca 7AC</a></td><td>$30,500</td><td>Lyndeborough, NH</td><td>July 21, 2026</td><td>Barnstormers.com</td></tr>
-        <tr><td><a href="https://www.barnstormers.com/classified-2055686-46-Champ-7AC.html" target="_blank" rel="noopener noreferrer">Aeronca 7AC</a></td><td>$34,500,</td><td>Oakland, NE</td><td>July 16, 2026</td><td>Barnstormers.com</td></tr>
     </tbody>
   </table>
 </body>
