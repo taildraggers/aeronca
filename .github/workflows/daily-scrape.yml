@@ -1,3 +1,4 @@
+# Scrapes Controller.com and Barnstormers.com for Aeronca listings once a day.
 name: Daily Aeronca Listings Scrape
 
 on:
