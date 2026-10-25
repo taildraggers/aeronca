@@ -1,15 +1,16 @@
 """Scraper for Aeronca aircraft listings on barnstormers.com.
 
-Only whole-aircraft-for-sale listings are published: each ad's title is
-matched against a known Aeronca model code/name and must state a model
-year, and titles that look like parts/accessories/services/raffles are
-dropped. Surviving titles are rewritten to a canonical "YEAR Aeronca MODEL"
-form so every listing follows the same format.
+Listings come from a Barnstormers advanced search on the ad headline
+"Aeronca". Only whole-aircraft-for-sale listings are published: each ad's
+title is matched against a known Aeronca model code/name, and titles that
+look like parts/accessories/services/raffles are dropped. Surviving titles
+are rewritten to a canonical "YEAR Aeronca MODEL" form so every listing
+follows the same format.
 """
 from __future__ import annotations
 
 import re
-from urllib.parse import quote, unquote, urljoin, urlparse
+from urllib.parse import parse_qsl, unquote, urlencode, urljoin, urlparse, urlunparse
 
 from bs4 import BeautifulSoup
 
@@ -28,13 +29,16 @@ SITE_NAME = "Barnstormers.com"
 BASE = "https://www.barnstormers.com"
 MAKE = "Aeronca"
 
-# Category pages known to carry Aeronca listings on Barnstormers.
-CATEGORY_URLS = [
-    f"{BASE}/category-16404-Antique-Classic--Aeronca.html",
-    f"{BASE}/category-20295-Light-Sport--Aeronca.html",
+# Barnstormers advanced search for ads whose headline contains "Aeronca".
+SEARCH_URLS = [
+    f"{BASE}/cat_search.php?headline=Aeronca&body=&part_num=&mfg=&model="
+    "&user__profile__company=&user__last_name=&user__first_name="
+    "&user__profile__country=&specialcase__state=&user__profile__city="
+    "&user__profile__uzip=&specialcase__phone=&user__email=&my_cats__name="
+    "&price__gte=&price__lte=&search_type=advanced&keyword=",
 ]
 
-MAX_PAGES = 10
+MAX_PAGES = 15
 LISTING_LINK_RE = re.compile(r"^/classified-(\d+)-(.+)\.html$")
 GENERIC_SITE_TITLE_SNIPPET = "barnstormers.com find aircraft"
 
@@ -77,26 +81,24 @@ def _find_listing_links(html: str) -> set[str]:
     soup = BeautifulSoup(html, "lxml")
     links = set()
     for a in soup.find_all("a", href=True):
-        href = a["href"].split("?")[0]
+        href = urlparse(urljoin(BASE, a["href"])).path
         if LISTING_LINK_RE.match(href):
             links.add(urljoin(BASE, href))
     return links
 
 
-def _page_url(category_url: str, page: int) -> str:
-    """Build a category page's URL directly.
-
-    Barnstormers' category pager renders as page-number buttons with no
-    "Next" text or rel="next" attribute for a link-following heuristic to
-    find (confirmed on the companion Van's RV, Stearman, Waco, Pitts,
-    Taylorcraft, Swift, and Beech repos, where that approach silently
-    stopped after page 1) - so each page's URL is built from the known
-    ?seocategory=<url-encoded-path>&page=<n> pattern instead.
+def _page_url(search_url: str, page: int) -> str:
+    """Build a search results page's URL directly by setting its page=<n>
+    query parameter, rather than hunting for "Next" links - Barnstormers'
+    pager renders as bare page-number buttons with no "Next" text or
+    rel="next" for a link-following heuristic to find.
     """
     if page <= 1:
-        return category_url
-    path = urlparse(category_url).path
-    return f"{category_url}?seocategory={quote(path, safe='')}&page={page}"
+        return search_url
+    parts = urlparse(search_url)
+    query = [(k, v) for k, v in parse_qsl(parts.query, keep_blank_values=True) if k != "page"]
+    query.append(("page", str(page)))
+    return urlunparse(parts._replace(query=urlencode(query)))
 
 
 def _debug_dump_hrefs(html: str, limit: int = 25) -> None:
@@ -147,22 +149,22 @@ def scrape() -> list[Listing]:
     print(f"[{SITE_NAME}] starting scrape")
     all_links: set[str] = set()
 
-    for category_url in CATEGORY_URLS:
-        seen_this_category: set[str] = set()
+    for search_url in SEARCH_URLS:
+        seen_this_search: set[str] = set()
         for page in range(1, MAX_PAGES + 1):
-            url = _page_url(category_url, page)
+            url = _page_url(search_url, page)
             html = fetch(url)
             if not html:
                 break
             links = _find_listing_links(html)
-            new_links = links - seen_this_category
-            print(f"  [{category_url}] page {page}: {len(links)} links ({len(new_links)} new)")
+            new_links = links - seen_this_search
+            print(f"  [search page {page}]: {len(links)} links ({len(new_links)} new)")
             if page == 1 and not links:
                 _debug_dump_hrefs(html)
-            seen_this_category |= links
+            seen_this_search |= links
             if not new_links:
                 break
-        all_links |= seen_this_category
+        all_links |= seen_this_search
 
     print(f"[{SITE_NAME}] {len(all_links)} unique listing URLs found")
 
