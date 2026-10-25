@@ -111,6 +111,20 @@ DATE_LABEL_RE = re.compile(
 )
 
 
+# No whole airplane in these searches sells for less than this; a lower
+# asking price means the ad is really for a part ("$135.00").
+MIN_AIRCRAFT_PRICE = 1_000
+
+
+def price_value(price: str) -> float | None:
+    """Numeric value of an extract_price() string, or None for 'Contact for price'."""
+    digits = re.sub(r"[^\d.]", "", price)
+    try:
+        return float(digits)
+    except ValueError:
+        return None
+
+
 def extract_price(text: str) -> str:
     m = PRICE_RE.search(text)
     if not m:
@@ -125,9 +139,17 @@ def extract_price(text: str) -> str:
     return raw
 
 
+# Capitalized label words that LOCATION_RE can swallow as part of a city name
+# ("Located Boise, ID").
+_LOCATION_LABEL_RE = re.compile(r"^(?:(?:Located|Location|Based|Hangared|In|At)\s+)+")
+
+
 def extract_location(text: str) -> str:
     m = LOCATION_RE.search(text)
-    return f"{m.group(1)}, {m.group(2)}" if m else "Unknown"
+    if not m:
+        return "Unknown"
+    city = _LOCATION_LABEL_RE.sub("", m.group(1)) or m.group(1)
+    return f"{city}, {m.group(2)}"
 
 
 def extract_date(text: str) -> str:
@@ -168,15 +190,21 @@ def extract_jsonld_objects(soup: BeautifulSoup) -> list[dict]:
     return objects
 
 
-YEAR_RE = re.compile(r"(?<!\d)(19\d{2}|20\d{2})(?!\d)")
+# Not followed by a letter, so tail numbers ("Cessna 140 2073N") aren't read
+# as years.
+YEAR_RE = re.compile(r"(?<!\d)(19\d{2}|20\d{2})(?![\da-z])", re.IGNORECASE)
 LABELED_YEAR_RE = re.compile(r"\byear\W{0,6}(19\d{2}|20\d{2})\b", re.IGNORECASE)
+# A two-digit year leading the title ("76 Citabria", "75CITABRIA"), read as
+# 1930-1999. Only at the very start, where it can't be an engine time or
+# horsepower figure.
+SHORT_YEAR_RE = re.compile(r"^'?([3-9]\d)(?=[\s'-]|[a-z])", re.IGNORECASE)
 
 # Words that mark a listing as parts/accessories/services/raffles rather than
 # a whole aircraft for sale. Matched as whole words/phrases against the ad's
 # title only (not the full ad body, where they're too likely to appear as
 # incidental description text).
 EXCLUDE_KEYWORDS = [
-    "parts", "part", "wing", "wings", "wingtip", "wingtips", "wheel", "wheels", "wheeltire", "wheeltires", "float", "floats",
+    "parts", "part", "parting", "parting out", "part out", "gear", "gears", "fin", "fins", "wing", "wings", "wingtip", "wingtips", "wheel", "wheels", "wheeltire", "wheeltires", "float", "floats",
     "strut", "struts", "gear leg", "gear legs", "landing gear",
     "engine mount", "engine mounts", "prop", "props", "propeller",
     "propellers", "cowl", "cowling", "cowlings", "fairing", "fairings",
@@ -193,13 +221,14 @@ EXCLUDE_KEYWORDS = [
     "decal", "decals", "poster", "ski", "skis", "brake", "brakes",
     "tire", "tires", "tube", "tubes", "empennage", "fuselage", "cabin",
     "canopy", "windshield", "exhaust", "muffler", "harness", "wiring",
-    "panel", "yoke", "control column", "controls", "cable", "cables",
+    "panel", "yoke", "control column", "control columns", "column", "columns", "gauge", "gauges", "controls", "cable", "cables",
     "throttle", "hardware", "hose", "hoses", "fitting", "fittings",
-    "bearing", "bearings", "tailwheel", "upholstery", "sump", "dipstick",
+    "bearing", "bearings", "tailwheel", "upholstery", "interior", "interiors", "sump", "dipstick",
     "connecting rods", "stc", "governor", "governors", "winter front", "winter fronts",
     "spray boom", "spray booms", "hopper", "hoppers", "spreader", "spreaders",
     "nozzle", "nozzles", "valve", "valves", "shock", "shocks", "rubber",
-    "intake", "intakes",
+    "intake", "intakes", "heat muff", "heat muffs", "connector", "connectors",
+    "trailer", "trailers", "fwf", "firewall forward",
     "raffle", "win a", "win an", "enter to win", "rental", "ferry pilot",
     "ferry service",
     "flight training", "instruction", "insurance", "financing", "wanted",
@@ -207,12 +236,27 @@ EXCLUDE_KEYWORDS = [
 ]
 
 
+# Phrases that contain an EXCLUDE_KEYWORDS word but describe a whole aircraft
+# ("Clipped Wing Cub", "Super Cub on floats", "Kit Fox"), stripped from the title before
+# the keyword check so they don't get the ad thrown out as a parts listing.
+ALLOWED_PHRASES = [
+    "clipped wing", "on floats", "with floats", "w floats", "on amphib floats",
+    "on skis", "with skis", "w skis", "kit built", "kitbuilt", "on tundra tires", "with tundra tires",
+    "w tundra tires", "kit fox", "tri gear", "tricycle gear", "conventional gear",
+]
+
+
 def extract_listing_year(title: str, page_text: str = "") -> str | None:
-    """Pull a 4-digit model year from the title, falling back to a labeled
-    'Year: 19xx' field in the ad body if the title doesn't state one."""
-    match = YEAR_RE.search(title)
+    """Pull a 4-digit (or leading 2-digit) model year from the title, falling
+    back to a labeled 'Year: 19xx' field in the ad body if the title doesn't
+    state one."""
+    latest = dt.date.today().year + 1
+    for match in YEAR_RE.finditer(title):
+        if int(match.group(1)) <= latest:
+            return match.group(1)
+    match = SHORT_YEAR_RE.match(title.strip())
     if match:
-        return match.group(1)
+        return "19" + match.group(1)
     if page_text:
         match = LABELED_YEAR_RE.search(page_text)
         if match:
@@ -229,6 +273,8 @@ def is_non_aircraft_ad(title: str) -> bool:
     # since " cowl " with a trailing space would never match "cowl,".
     normalized = re.sub(r"[^a-z0-9]+", " ", title.lower())
     normalized = " " + normalized.strip() + " "
+    for phrase in ALLOWED_PHRASES:
+        normalized = normalized.replace(" " + phrase + " ", " ")
     return any((" " + keyword + " ") in normalized for keyword in EXCLUDE_KEYWORDS)
 
 
@@ -248,10 +294,11 @@ def format_aircraft_title(title: str, page_text: str, extract_model) -> str | No
     if not result:
         return None
     make, model = result
+    name = f"{make} {model}".strip()
     year = extract_listing_year(title, page_text)
     if year:
-        return f"{year} {make} {model}"
-    return f"{make} {model}"
+        return f"{year} {name}"
+    return name
 
 
 @dataclass

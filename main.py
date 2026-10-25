@@ -33,12 +33,17 @@ def collect_listings() -> list[Listing]:
     finally:
         close_browser()
 
+    # Sellers often repost the same ad under a new classified number, so
+    # besides exact URL matches, collapse listings whose canonical title,
+    # price, and location are all identical.
     seen = set()
     unique: list[Listing] = []
     for listing in listings:
-        if listing.key() in seen:
+        content_key = (listing.title, listing.price, listing.location)
+        if listing.key() in seen or content_key in seen:
             continue
         seen.add(listing.key())
+        seen.add(content_key)
         unique.append(listing)
     # Newest posted first; listings with no parseable post date sort last,
     # alphabetically among themselves.

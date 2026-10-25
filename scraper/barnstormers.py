@@ -14,12 +14,14 @@ from urllib.parse import quote, unquote, urljoin, urlparse
 from bs4 import BeautifulSoup
 
 from .common import (
+    MIN_AIRCRAFT_PRICE,
     Listing,
     extract_date,
     extract_location,
     extract_price,
     fetch,
     format_aircraft_title,
+    price_value,
 )
 
 SITE_NAME = "Barnstormers.com"
@@ -125,6 +127,9 @@ def _parse_detail_page(url: str, html: str) -> Listing | None:
     title = formatted_title
 
     price = extract_price(text)
+    value = price_value(price)
+    if value is not None and value < MIN_AIRCRAFT_PRICE:
+        return None
     location = extract_location(text)
     date_posted = extract_date(text)
 
