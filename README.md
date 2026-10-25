@@ -10,11 +10,14 @@ browser can't drive reliably for an unattended daily job.
 
 ## How it works
 
-- `scraper/barnstormers.py` searches Barnstormers.com for Aeronca listings, follows
-  pagination, then visits each listing's detail page to pull out the price, location,
-  and posted date (falling back to regex heuristics over the visible text since the
-  site doesn't expose structured data). The title is derived from the listing URL's
-  own SEO slug, since every detail page shares one generic `<title>`/`<h1>`.
+- `scraper/barnstormers.py` runs a Barnstormers advanced search for ads whose
+  headline contains **"Aeronca"**, and walks every page of results: Barnstormers shows
+  25 ads per page with a `&page=N` pager, so the scraper requests page 1, 2, 3, ...
+  until a page turns up no new ads. It then visits each listing's detail page to pull
+  out the price, location, and posted date (falling back to regex heuristics over the
+  visible text since the site doesn't expose structured data). The title is derived
+  from the listing URL's own SEO slug, since every detail page shares one generic
+  `<title>`/`<h1>`.
 - Only whole-aircraft-for-sale listings are published. Each ad's title must match a
   recognized Aeronca model code/name (7AC, 11BC, 65CA, Champ, Chief, Super Chief,
   Sedan, etc. - see `_MODEL_CODE_RE`/`_MODEL_NAME_RULES` in `scraper/barnstormers.py`);
